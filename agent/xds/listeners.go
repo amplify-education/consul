@@ -1803,16 +1803,19 @@ func (s *ResourceGenerator) makeFilterChainTerminatingGateway(cfgSnap *proxycfg.
 	// Lastly we setup the actual proxying component. For L4 this is a straight
 	// tcp proxy. For L7 this is a very hands-off HTTP proxy just to inject an
 	// HTTP filter to do intention checks here instead.
+	no_timeout := 0
 	opts := listenerFilterOpts{
-		protocol:   tgtwyOpts.protocol,
-		filterName: fmt.Sprintf("%s.%s.%s.%s", tgtwyOpts.service.Name, tgtwyOpts.service.NamespaceOrDefault(), tgtwyOpts.service.PartitionOrDefault(), cfgSnap.Datacenter),
-		routeName:  tgtwyOpts.cluster, // Set cluster name for route config since each will have its own
-		cluster:    tgtwyOpts.cluster,
-		statPrefix: "upstream.",
-		routePath:  "",
-		tracing:    tracing,
-		accessLogs: &cfgSnap.Proxy.AccessLogs,
-		logger:     s.Logger,
+		protocol:         tgtwyOpts.protocol,
+		filterName:       fmt.Sprintf("%s.%s.%s.%s", tgtwyOpts.service.Name, tgtwyOpts.service.NamespaceOrDefault(), tgtwyOpts.service.PartitionOrDefault(), cfgSnap.Datacenter),
+		routeName:        tgtwyOpts.cluster, // Set cluster name for route config since each will have its own
+		cluster:          tgtwyOpts.cluster,
+		statPrefix:       "upstream.",
+		routePath:        "",
+		tracing:          tracing,
+		accessLogs:       &cfgSnap.Proxy.AccessLogs,
+		logger:           s.Logger,
+		idleTimeoutMs:    &no_timeout,
+		requestTimeoutMs: &no_timeout,
 	}
 
 	if useHTTPFilter {
