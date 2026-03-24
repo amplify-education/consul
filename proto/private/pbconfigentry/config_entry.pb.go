@@ -4572,6 +4572,8 @@ type UpstreamConfig struct {
 	MeshGateway                *MeshGatewayConfig  `protobuf:"bytes,9,opt,name=MeshGateway,proto3" json:"MeshGateway,omitempty"`
 	BalanceOutboundConnections string              `protobuf:"bytes,10,opt,name=BalanceOutboundConnections,proto3" json:"BalanceOutboundConnections,omitempty"`
 	Peer                       string              `protobuf:"bytes,11,opt,name=Peer,proto3" json:"Peer,omitempty"`
+	RequestHeaders             *HTTPHeaderModifiers `protobuf:"bytes,12,opt,name=RequestHeaders,proto3" json:"RequestHeaders,omitempty"`
+	ResponseHeaders            *HTTPHeaderModifiers `protobuf:"bytes,13,opt,name=ResponseHeaders,proto3" json:"ResponseHeaders,omitempty"`
 	unknownFields              protoimpl.UnknownFields
 	sizeCache                  protoimpl.SizeCache
 }
@@ -4681,6 +4683,20 @@ func (x *UpstreamConfig) GetPeer() string {
 		return x.Peer
 	}
 	return ""
+}
+
+func (x *UpstreamConfig) GetRequestHeaders() *HTTPHeaderModifiers {
+	if x != nil {
+		return x.RequestHeaders
+	}
+	return nil
+}
+
+func (x *UpstreamConfig) GetResponseHeaders() *HTTPHeaderModifiers {
+	if x != nil {
+		return x.ResponseHeaders
+	}
+	return nil
 }
 
 // mog annotation:

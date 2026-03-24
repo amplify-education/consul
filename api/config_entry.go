@@ -262,6 +262,14 @@ type UpstreamConfig struct {
 	// BalanceOutboundConnections indicates that the proxy should attempt to evenly distribute
 	// outbound connections across worker threads. Only used by envoy proxies.
 	BalanceOutboundConnections string `json:",omitempty" alias:"balance_outbound_connections"`
+
+	// RequestHeaders is a set of header modification rules applied to requests
+	// routed to this upstream.
+	RequestHeaders *HTTPHeaderModifiers `json:",omitempty" alias:"request_headers"`
+
+	// ResponseHeaders is a set of header modification rules applied to responses
+	// from this upstream.
+	ResponseHeaders *HTTPHeaderModifiers `json:",omitempty" alias:"response_headers"`
 }
 
 // DestinationConfig represents a virtual service, i.e. one that is external to Consul

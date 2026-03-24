@@ -294,6 +294,18 @@ type ConnectProxyConfig struct {
 
 	// AccessLogs configures the output and format of Envoy access logs
 	AccessLogs AccessLogsConfig `json:",omitempty" alias:"access_logs"`
+
+	// RequestHeaders is a set of header modification rules applied to all
+	// outbound requests from this proxy. This allows operators to add, set, or
+	// remove HTTP headers for all traffic leaving the sidecar. Only valid for
+	// http, http2, and grpc protocols.
+	RequestHeaders *HTTPHeaderModifiers `json:",omitempty" alias:"request_headers"`
+
+	// ResponseHeaders is a set of header modification rules applied to all
+	// inbound responses to this proxy. This allows operators to add, set, or
+	// remove HTTP headers for all traffic returning through the sidecar. Only
+	// valid for http, http2, and grpc protocols.
+	ResponseHeaders *HTTPHeaderModifiers `json:",omitempty" alias:"response_headers"`
 }
 
 func (t *ConnectProxyConfig) UnmarshalJSON(data []byte) (err error) {
@@ -491,6 +503,14 @@ type Upstream struct {
 	// CentrallyConfigured indicates whether the upstream was defined in a proxy
 	// instance registration or whether it was generated from a config entry.
 	CentrallyConfigured bool `json:",omitempty" bexpr:"-"`
+
+	// RequestHeaders is a set of header modification rules applied to requests
+	// to this upstream. Resolved from service-defaults UpstreamConfig.
+	RequestHeaders *HTTPHeaderModifiers `json:",omitempty" alias:"request_headers"`
+
+	// ResponseHeaders is a set of header modification rules applied to responses
+	// from this upstream. Resolved from service-defaults UpstreamConfig.
+	ResponseHeaders *HTTPHeaderModifiers `json:",omitempty" alias:"response_headers"`
 }
 
 func (t *Upstream) UnmarshalJSON(data []byte) (err error) {

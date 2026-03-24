@@ -86,6 +86,13 @@ func (s *ResourceGenerator) routesForConnectProxy(cfgSnap *proxycfg.ConfigSnapsh
 			continue
 		}
 
+		// Inject upstream-level header manipulation from service-defaults
+		// UpstreamConfig and proxy-level ConnectProxyConfig. These are applied
+		// at the virtual host level so they affect all routes for this upstream.
+		if err := injectUpstreamHeaderManip(cfgSnap, uid, virtualHost); err != nil {
+			return nil, fmt.Errorf("failed to apply upstream header manipulation: %v", err)
+		}
+
 		route := &envoy_route_v3.RouteConfiguration{
 			Name:         uid.EnvoyID(),
 			VirtualHosts: []*envoy_route_v3.VirtualHost{virtualHost},
@@ -1281,6 +1288,81 @@ func injectHeaderManipToRoute(dest *structs.ServiceRouteDestination, r *envoy_ro
 		r.ResponseHeadersToRemove = append(
 			r.ResponseHeadersToRemove,
 			dest.ResponseHeaders.Remove...,
+		)
+	}
+	return nil
+}
+
+// injectUpstreamHeaderManip merges proxy-level and upstream-level header
+// modification rules and injects them into the Envoy VirtualHost. The merge
+// order gives upstream-specific config precedence over proxy-wide config.
+func injectUpstreamHeaderManip(cfgSnap *proxycfg.ConfigSnapshot, uid proxycfg.UpstreamID, vh *envoy_route_v3.VirtualHost) error {
+	if cfgSnap.Kind != structs.ServiceKindConnectProxy {
+		return nil
+	}
+
+	// Start with proxy-level headers (lowest precedence).
+	reqHeaders := cfgSnap.Proxy.RequestHeaders
+	respHeaders := cfgSnap.Proxy.ResponseHeaders
+
+	// Merge in upstream-level headers. These are resolved from service-defaults
+	// UpstreamConfig and carried on the Upstream struct in the snapshot.
+	// Upstream-specific headers take precedence over proxy-wide headers.
+	upstream, _ := cfgSnap.ConnectProxy.GetUpstream(uid, &cfgSnap.ProxyID.EnterpriseMeta)
+	if upstream != nil {
+		if !upstream.RequestHeaders.IsZero() {
+			merged, err := structs.MergeHTTPHeaderModifiers(reqHeaders, upstream.RequestHeaders)
+			if err != nil {
+				return fmt.Errorf("failed to merge request headers: %v", err)
+			}
+			reqHeaders = merged
+		}
+		if !upstream.ResponseHeaders.IsZero() {
+			merged, err := structs.MergeHTTPHeaderModifiers(respHeaders, upstream.ResponseHeaders)
+			if err != nil {
+				return fmt.Errorf("failed to merge response headers: %v", err)
+			}
+			respHeaders = merged
+		}
+	}
+
+	if reqHeaders.IsZero() && respHeaders.IsZero() {
+		return nil
+	}
+
+	return injectHTTPHeaderManipToVirtualHost(reqHeaders, respHeaders, vh)
+}
+
+// injectHTTPHeaderManipToVirtualHost applies the given request/response header
+// modifiers to an Envoy VirtualHost. This is a generic helper used by both
+// upstream-level and ingress-level header injection.
+func injectHTTPHeaderManipToVirtualHost(reqHeaders, respHeaders *structs.HTTPHeaderModifiers, vh *envoy_route_v3.VirtualHost) error {
+	if !reqHeaders.IsZero() {
+		vh.RequestHeadersToAdd = append(
+			vh.RequestHeadersToAdd,
+			makeHeadersValueOptions(reqHeaders.Add, true)...,
+		)
+		vh.RequestHeadersToAdd = append(
+			vh.RequestHeadersToAdd,
+			makeHeadersValueOptions(reqHeaders.Set, false)...,
+		)
+		vh.RequestHeadersToRemove = append(
+			vh.RequestHeadersToRemove,
+			reqHeaders.Remove...,
+		)
+	}
+	if !respHeaders.IsZero() {
+		vh.ResponseHeadersToAdd = append(
+			vh.ResponseHeadersToAdd,
+			makeHeadersValueOptions(respHeaders.Add, true)...,
+		)
+		vh.ResponseHeadersToAdd = append(
+			vh.ResponseHeadersToAdd,
+			makeHeadersValueOptions(respHeaders.Set, false)...,
+		)
+		vh.ResponseHeadersToRemove = append(
+			vh.ResponseHeadersToRemove,
+			respHeaders.Remove...,
 		)
 	}
 	return nil
