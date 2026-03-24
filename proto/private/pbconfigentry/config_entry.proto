@@ -712,6 +712,8 @@ message UpstreamConfig {
   MeshGatewayConfig MeshGateway = 9;
   string BalanceOutboundConnections = 10;
   string Peer = 11;
+  HTTPHeaderModifiers RequestHeaders = 12;
+  HTTPHeaderModifiers ResponseHeaders = 13;
 }
 
 // mog annotation:

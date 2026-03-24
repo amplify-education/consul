@@ -1080,3 +1080,149 @@ func Test_MergeServiceConfig_RateLimit(t *testing.T) {
 		})
 	}
 }
+
+func Test_MergeServiceConfig_UpstreamHeaders(t *testing.T) {
+	zapUpstreamID := structs.PeeredServiceName{
+		ServiceName: structs.NewServiceName("zap", structs.DefaultEnterpriseMetaInDefaultPartition()),
+	}
+
+	tests := []struct {
+		name     string
+		defaults *structs.ServiceConfigResponse
+		service  *structs.NodeService
+		want     *structs.NodeService
+	}{
+		{
+			name: "central upstream headers are propagated to local upstream",
+			defaults: &structs.ServiceConfigResponse{
+				UpstreamConfigs: structs.OpaqueUpstreamConfigs{
+					{
+						Upstream: zapUpstreamID,
+						Config: map[string]interface{}{
+							"protocol": "http",
+						},
+						RequestHeaders: &structs.HTTPHeaderModifiers{
+							Set: map[string]string{
+								"x-source-service": "web",
+							},
+						},
+						ResponseHeaders: &structs.HTTPHeaderModifiers{
+							Remove: []string{"server"},
+						},
+					},
+				},
+			},
+			service: &structs.NodeService{
+				ID:      "foo-proxy",
+				Service: "foo-proxy",
+				Proxy: structs.ConnectProxyConfig{
+					DestinationServiceName: "foo",
+					DestinationServiceID:   "foo",
+					Upstreams: structs.Upstreams{
+						structs.Upstream{
+							DestinationNamespace: "default",
+							DestinationPartition: "default",
+							DestinationName:      "zap",
+						},
+					},
+				},
+			},
+			want: &structs.NodeService{
+				ID:      "foo-proxy",
+				Service: "foo-proxy",
+				Proxy: structs.ConnectProxyConfig{
+					DestinationServiceName: "foo",
+					DestinationServiceID:   "foo",
+					Upstreams: structs.Upstreams{
+						structs.Upstream{
+							DestinationNamespace: "default",
+							DestinationPartition: "default",
+							DestinationName:      "zap",
+							Config: map[string]interface{}{
+								"protocol": "http",
+							},
+							RequestHeaders: &structs.HTTPHeaderModifiers{
+								Set: map[string]string{
+									"x-source-service": "web",
+								},
+							},
+							ResponseHeaders: &structs.HTTPHeaderModifiers{
+								Remove: []string{"server"},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "local upstream headers take precedence over central",
+			defaults: &structs.ServiceConfigResponse{
+				UpstreamConfigs: structs.OpaqueUpstreamConfigs{
+					{
+						Upstream: zapUpstreamID,
+						Config: map[string]interface{}{
+							"protocol": "http",
+						},
+						RequestHeaders: &structs.HTTPHeaderModifiers{
+							Set: map[string]string{
+								"x-source-service": "web-central",
+							},
+						},
+					},
+				},
+			},
+			service: &structs.NodeService{
+				ID:      "foo-proxy",
+				Service: "foo-proxy",
+				Proxy: structs.ConnectProxyConfig{
+					DestinationServiceName: "foo",
+					DestinationServiceID:   "foo",
+					Upstreams: structs.Upstreams{
+						structs.Upstream{
+							DestinationNamespace: "default",
+							DestinationPartition: "default",
+							DestinationName:      "zap",
+							RequestHeaders: &structs.HTTPHeaderModifiers{
+								Set: map[string]string{
+									"x-source-service": "web-local",
+								},
+							},
+						},
+					},
+				},
+			},
+			want: &structs.NodeService{
+				ID:      "foo-proxy",
+				Service: "foo-proxy",
+				Proxy: structs.ConnectProxyConfig{
+					DestinationServiceName: "foo",
+					DestinationServiceID:   "foo",
+					Upstreams: structs.Upstreams{
+						structs.Upstream{
+							DestinationNamespace: "default",
+							DestinationPartition: "default",
+							DestinationName:      "zap",
+							Config: map[string]interface{}{
+								"protocol": "http",
+							},
+							// Local headers take precedence, so central headers are not used
+							RequestHeaders: &structs.HTTPHeaderModifiers{
+								Set: map[string]string{
+									"x-source-service": "web-local",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := MergeServiceConfig(tt.defaults, tt.service)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}

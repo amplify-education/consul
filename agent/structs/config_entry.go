@@ -1027,6 +1027,18 @@ type UpstreamConfig struct {
 	// BalanceOutboundConnections indicates how the proxy should attempt to distribute
 	// connections across worker threads. Only used by envoy proxies.
 	BalanceOutboundConnections string `json:",omitempty" alias:"balance_outbound_connections"`
+
+	// RequestHeaders is a set of header modification rules that are applied to
+	// requests routed to this upstream. This allows operators to add, set, or
+	// remove HTTP headers for traffic flowing to specific upstreams. Only valid
+	// for http, http2, and grpc protocols.
+	RequestHeaders *HTTPHeaderModifiers `json:",omitempty" alias:"request_headers"`
+
+	// ResponseHeaders is a set of header modification rules that are applied to
+	// responses from this upstream. This allows operators to add, set, or remove
+	// HTTP headers for traffic returning from specific upstreams. Only valid for
+	// http, http2, and grpc protocols.
+	ResponseHeaders *HTTPHeaderModifiers `json:",omitempty" alias:"response_headers"`
 }
 
 func (cfg UpstreamConfig) Clone() UpstreamConfig {
@@ -1034,6 +1046,17 @@ func (cfg UpstreamConfig) Clone() UpstreamConfig {
 
 	cfg2.Limits = cfg.Limits.Clone()
 	cfg2.PassiveHealthCheck = cfg.PassiveHealthCheck.Clone()
+
+	var err error
+	cfg2.RequestHeaders, err = cfg.RequestHeaders.Clone()
+	if err != nil {
+		// Clone uses copystructure which should not fail for this type.
+		panic(fmt.Sprintf("failed to clone RequestHeaders: %v", err))
+	}
+	cfg2.ResponseHeaders, err = cfg.ResponseHeaders.Clone()
+	if err != nil {
+		panic(fmt.Sprintf("failed to clone ResponseHeaders: %v", err))
+	}
 
 	return cfg2
 }
@@ -1304,8 +1327,10 @@ func (ul UpstreamLimits) Validate() error {
 }
 
 type OpaqueUpstreamConfig struct {
-	Upstream PeeredServiceName
-	Config   map[string]interface{}
+	Upstream        PeeredServiceName
+	Config          map[string]interface{}
+	RequestHeaders  *HTTPHeaderModifiers `json:",omitempty"`
+	ResponseHeaders *HTTPHeaderModifiers `json:",omitempty"`
 }
 type OpaqueUpstreamConfigs []OpaqueUpstreamConfig
 
