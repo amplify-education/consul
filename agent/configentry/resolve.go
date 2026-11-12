@@ -233,6 +233,26 @@ func ComputeResolvedServiceConfig(
 		resolvedConfigs[wildcard] = wildcardUpstreamDefaults
 	}
 
+	// Store wildcard headers so they are included in the OpaqueUpstreamConfig
+	// for the wildcard entry, making them available to all upstreams as defaults.
+	// resolvedHeaders tracks the merged request/response header modifiers for
+	// each upstream, resolved separately from the opaque config map.
+	type resolvedHeaderModifiers struct {
+		RequestHeaders  *structs.HTTPHeaderModifiers
+		ResponseHeaders *structs.HTTPHeaderModifiers
+	}
+	resolvedHeadersByUpstream := make(map[structs.PeeredServiceName]resolvedHeaderModifiers)
+
+	// Resolve wildcard upstream headers from defaults.
+	var wildcardHeaders resolvedHeaderModifiers
+	if upstreamDefaults != nil {
+		wildcardHeaders.RequestHeaders = upstreamDefaults.RequestHeaders
+		wildcardHeaders.ResponseHeaders = upstreamDefaults.ResponseHeaders
+		if !upstreamDefaults.RequestHeaders.IsZero() || !upstreamDefaults.ResponseHeaders.IsZero() {
+			resolvedHeadersByUpstream[wildcard] = wildcardHeaders
+		}
+	}
+
 	for upstream := range seenUpstreams {
 		resolvedCfg := make(map[string]interface{})
 
@@ -295,6 +315,23 @@ func ComputeResolvedServiceConfig(
 		if len(resolvedCfg) > 0 {
 			resolvedConfigs[upstream] = resolvedCfg
 		}
+
+		// Resolve header modifiers: start with defaults, then merge overrides.
+		hdrs := wildcardHeaders
+		if override, ok := upstreamOverrides[upstream]; ok && override != nil {
+			var err error
+			hdrs.RequestHeaders, err = structs.MergeHTTPHeaderModifiers(hdrs.RequestHeaders, override.RequestHeaders)
+			if err != nil {
+				return nil, fmt.Errorf("failed to merge request headers for upstream %s: %v", upstream.String(), err)
+			}
+			hdrs.ResponseHeaders, err = structs.MergeHTTPHeaderModifiers(hdrs.ResponseHeaders, override.ResponseHeaders)
+			if err != nil {
+				return nil, fmt.Errorf("failed to merge response headers for upstream %s: %v", upstream.String(), err)
+			}
+		}
+		if !hdrs.RequestHeaders.IsZero() || !hdrs.ResponseHeaders.IsZero() {
+			resolvedHeadersByUpstream[upstream] = hdrs
+		}
 	}
 
 	// don't allocate the slices just to not fill them
@@ -305,8 +342,12 @@ func ComputeResolvedServiceConfig(
 	thisReply.UpstreamConfigs = make(structs.OpaqueUpstreamConfigs, 0, len(resolvedConfigs))
 
 	for us, conf := range resolvedConfigs {
-		thisReply.UpstreamConfigs = append(thisReply.UpstreamConfigs,
-			structs.OpaqueUpstreamConfig{Upstream: us, Config: conf})
+		ouc := structs.OpaqueUpstreamConfig{Upstream: us, Config: conf}
+		if hdrs, ok := resolvedHeadersByUpstream[us]; ok {
+			ouc.RequestHeaders = hdrs.RequestHeaders
+			ouc.ResponseHeaders = hdrs.ResponseHeaders
+		}
+		thisReply.UpstreamConfigs = append(thisReply.UpstreamConfigs, ouc)
 	}
 
 	return &thisReply, nil

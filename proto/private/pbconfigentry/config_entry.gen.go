@@ -3315,6 +3315,16 @@ func UpstreamConfigToStructs(s *UpstreamConfig, t *structs.UpstreamConfig) {
 		MeshGatewayConfigToStructs(s.MeshGateway, &t.MeshGateway)
 	}
 	t.BalanceOutboundConnections = s.BalanceOutboundConnections
+	if s.RequestHeaders != nil {
+		var x structs.HTTPHeaderModifiers
+		HTTPHeaderModifiersToStructs(s.RequestHeaders, &x)
+		t.RequestHeaders = &x
+	}
+	if s.ResponseHeaders != nil {
+		var x structs.HTTPHeaderModifiers
+		HTTPHeaderModifiersToStructs(s.ResponseHeaders, &x)
+		t.ResponseHeaders = &x
+	}
 }
 func UpstreamConfigFromStructs(t *structs.UpstreamConfig, s *UpstreamConfig) {
 	if s == nil {
@@ -3343,6 +3353,16 @@ func UpstreamConfigFromStructs(t *structs.UpstreamConfig, s *UpstreamConfig) {
 		s.MeshGateway = &x
 	}
 	s.BalanceOutboundConnections = t.BalanceOutboundConnections
+	if t.RequestHeaders != nil {
+		var x HTTPHeaderModifiers
+		HTTPHeaderModifiersFromStructs(t.RequestHeaders, &x)
+		s.RequestHeaders = &x
+	}
+	if t.ResponseHeaders != nil {
+		var x HTTPHeaderModifiers
+		HTTPHeaderModifiersFromStructs(t.ResponseHeaders, &x)
+		s.ResponseHeaders = &x
+	}
 }
 func UpstreamConfigurationToStructs(s *UpstreamConfiguration, t *structs.UpstreamConfiguration) {
 	if s == nil {

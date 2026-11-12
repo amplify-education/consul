@@ -183,6 +183,8 @@ func MergeServiceConfig(defaults *structs.ServiceConfigResponse, service *struct
 			Config:               us.Config,
 			MeshGateway:          parsed.MeshGateway,
 			CentrallyConfigured:  true,
+			RequestHeaders:       us.RequestHeaders,
+			ResponseHeaders:      us.ResponseHeaders,
 		}
 	}
 
@@ -238,6 +240,15 @@ func MergeServiceConfig(defaults *structs.ServiceConfigResponse, service *struct
 		// Note that we use the "mesh_gateway" key and not other variants like "MeshGateway" because
 		// UpstreamConfig.MergeInto and ResolveServiceConfig only use "mesh_gateway".
 		delete(us.Config, "mesh_gateway")
+
+		// Merge header modifiers from central config. Local upstream headers
+		// (if set) take precedence over centrally configured ones.
+		if us.RequestHeaders.IsZero() && !remoteCfg.RequestHeaders.IsZero() {
+			us.RequestHeaders = remoteCfg.RequestHeaders
+		}
+		if us.ResponseHeaders.IsZero() && !remoteCfg.ResponseHeaders.IsZero() {
+			us.ResponseHeaders = remoteCfg.ResponseHeaders
+		}
 	}
 
 	// Ensure upstreams present in central config are represented in the local configuration.

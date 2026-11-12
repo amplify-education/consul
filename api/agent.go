@@ -218,6 +218,8 @@ type AgentServiceConnectProxyConfig struct {
 	MeshGateway            MeshGatewayConfig       `json:",omitempty"`
 	Expose                 ExposeConfig            `json:",omitempty"`
 	AccessLogs             *AccessLogsConfig       `json:",omitempty"`
+	RequestHeaders         *HTTPHeaderModifiers    `json:",omitempty"`
+	ResponseHeaders        *HTTPHeaderModifiers    `json:",omitempty"`
 }
 
 // AgentServiceAI is the public twin of the internal structs.ServiceAI: the
